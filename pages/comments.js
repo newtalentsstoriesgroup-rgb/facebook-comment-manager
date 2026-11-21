@@ -11,6 +11,7 @@ import { ListSkeleton } from '@/components/Loading';
 import { useAuth } from '@/context/AuthContext';
 import { useComments } from '@/hooks/useComments';
 import { usePosts } from '@/hooks/usePosts';
+import { useTemplates } from '@/hooks/useTemplates';
 import {
   createComment,
   createManyComments,
@@ -31,6 +32,7 @@ export default function CommentsPage() {
   const router = useRouter();
   const { comments, loading } = useComments();
   const { posts } = usePosts();
+  const { templates } = useTemplates();
 
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
@@ -323,6 +325,7 @@ export default function CommentsPage() {
         open={editor.open}
         onClose={() => setEditor((e) => ({ ...e, open: false }))}
         posts={posts}
+        templates={templates}
         initial={editor.comment}
         defaultPostId={postFilter !== 'all' ? postFilter : ''}
         defaultMultiple={editor.multiple}
