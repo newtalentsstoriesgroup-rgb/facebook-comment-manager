@@ -11,6 +11,9 @@ import {
   LogOut,
   X,
   Facebook,
+  Reply,
+  ClipboardList,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
@@ -20,6 +23,9 @@ export const NAV_ITEMS = [
   { href: '/posts', label: 'Inyandiko', icon: FileText },
   { href: '/comments', label: 'Ibitekerezo', icon: MessageSquare },
   { href: '/approvals', label: 'Kwemeza', icon: CheckCircle2 },
+  { href: '/replies', label: 'Gusubiza', icon: Reply },
+  { href: '/templates', label: 'Ibyitegererezo', icon: ClipboardList },
+  { href: '/auto-reply', label: 'Gusubiza ubwayo', icon: Bot },
   { href: '/history', label: 'Amateka', icon: History },
   { href: '/settings', label: 'Igenamiterere', icon: Settings },
   { href: '/profile', label: 'Umwirondoro', icon: User },
