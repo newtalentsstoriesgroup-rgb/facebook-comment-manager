@@ -18,6 +18,7 @@ export default function CommentEditor({
   initial = null,
   defaultPostId = '',
   defaultMultiple = false,
+  templates = [],
   onSubmit,
 }) {
   const [postId, setPostId] = useState('');
@@ -123,6 +124,32 @@ export default function CommentEditor({
             />
             Ongeraho ibitekerezo byinshi icyarimwe
           </label>
+        )}
+
+        {templates.length > 0 && (
+          <div>
+            <label className="label" htmlFor="ce-tpl">Koresha icyitegererezo</label>
+            <select
+              id="ce-tpl"
+              className="input"
+              defaultValue=""
+              onChange={(e) => {
+                const t = templates.find((x) => x.id === e.target.value);
+                if (t) {
+                  const body = t.text.replace(/\{izina\}/gi, '').replace(/ +([,.!?])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+                  setText((prev) => (multiple && prev.trim() ? `${prev.trim()}\n${body}` : body));
+                }
+                e.target.value = '';
+              }}
+            >
+              <option value="">— Hitamo —</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
 
         <div>
