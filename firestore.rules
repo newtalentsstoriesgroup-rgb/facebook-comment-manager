@@ -1,0 +1,150 @@
+rules_version = '2';
+
+// Facebook Comment Manager — Firestore Security Rules
+// Nta "admin" cyangwa "role" birimo: buri mukoresha afite uburenganzira bungana ku makuru ye bwite gusa.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Imikorere ifasha ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+    // Inyandiko isanzwe ni iy'umukoresha: request.auth.uid == resource.data.userId
+    function ownsExisting() {
+      return signedIn() && request.auth.uid == resource.data.userId;
+    }
+    // Inyandiko nshya/ivuguruye ifite userId y'umukoresha: request.auth.uid == request.resource.data.userId
+    function ownsNew() {
+      return signedIn() && request.auth.uid == request.resource.data.userId;
+    }
+    function createdAtUnchanged() {
+      return request.resource.data.createdAt == resource.data.createdAt;
+    }
+    function optString(v, max) {
+      return v == null || (v is string && v.size() <= max);
+    }
+    function optTimestamp(v) {
+      return v == null || v is timestamp;
+    }
+
+    // ---------- users/{uid} ----------
+    match /users/{uid} {
+      function validUser() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+          && d.keys().hasAll(['uid', 'email', 'displayName', 'photoURL', 'createdAt', 'updatedAt'])
+          && d.uid == request.auth.uid
+          && d.uid == uid
+          && d.email is string && d.email.size() <= 320
+          && optString(d.displayName, 100)
+          && optString(d.photoURL, 2048)
+          && d.createdAt is timestamp
+          && d.updatedAt is timestamp;
+      }
+
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid) && validUser();
+      allow update: if isOwner(uid) && validUser() && createdAtUnchanged();
+      allow delete: if isOwner(uid);
+    }
+
+    // ---------- posts ----------
+    match /posts/{postDoc} {
+      function validPost() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['userId', 'postId', 'postUrl', 'title', 'description', 'createdAt', 'updatedAt'])
+          && d.keys().hasAll(['userId', 'postId', 'postUrl', 'title', 'description', 'createdAt', 'updatedAt'])
+          && d.userId is string
+          && d.postUrl is string && d.postUrl.size() > 0 && d.postUrl.size() <= 2048
+          && d.postId is string && d.postId.size() <= 200
+          && d.title is string && d.title.size() <= 300
+          && d.description is string && d.description.size() <= 2000
+          && d.createdAt is timestamp
+          && d.updatedAt is timestamp;
+      }
+
+      allow read: if ownsExisting();
+      allow create: if ownsNew() && validPost();
+      // Ntushobora guhindura nnyiri inyandiko (userId)
+      allow update: if ownsExisting() && ownsNew() && validPost() && createdAtUnchanged();
+      allow delete: if ownsExisting();
+    }
+
+    // ---------- comments ----------
+    // Status "published" na "failed", hamwe na facebookCommentId/publishedAt, bishyirwaho na seriveri gusa
+    // (pages/api/facebook/publish.js ikoresheje Admin SDK). Client ntishobora kubihimba.
+    match /comments/{commentDoc} {
+      function validCommentShape() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['userId', 'postId', 'text', 'status', 'createdAt', 'updatedAt',
+                                 'approvedAt', 'publishedAt', 'facebookCommentId', 'errorMessage'])
+          && d.keys().hasAll(['userId', 'postId', 'text', 'status', 'createdAt', 'updatedAt',
+                              'approvedAt', 'publishedAt', 'facebookCommentId', 'errorMessage'])
+          && d.userId is string
+          && d.postId is string && d.postId.size() > 0 && d.postId.size() <= 100
+          && d.text is string && d.text.size() > 0 && d.text.size() <= 8000
+          && d.status is string
+          && d.createdAt is timestamp
+          && d.updatedAt is timestamp
+          && optTimestamp(d.approvedAt)
+          && optTimestamp(d.publishedAt)
+          && optString(d.facebookCommentId, 200)
+          && optString(d.errorMessage, 1000);
+      }
+
+      allow read: if ownsExisting();
+
+      allow create: if ownsNew()
+        && validCommentShape()
+        && request.resource.data.status in ['draft', 'pending']
+        && request.resource.data.publishedAt == null
+        && request.resource.data.facebookCommentId == null;
+
+      allow update: if ownsExisting() && ownsNew()
+        && validCommentShape()
+        && createdAtUnchanged()
+        && resource.data.status != 'published'
+        && (request.resource.data.status in ['draft', 'pending', 'approved', 'rejected']
+            || request.resource.data.status == resource.data.status)
+        && request.resource.data.publishedAt == resource.data.publishedAt
+        && request.resource.data.facebookCommentId == resource.data.facebookCommentId;
+
+      allow delete: if ownsExisting();
+    }
+
+    // ---------- activityLogs (amateka: asomwa kandi yongerwaho gusa, ntahindurwa) ----------
+    match /activityLogs/{logDoc} {
+      allow read: if ownsExisting();
+      allow create: if ownsNew()
+        && request.resource.data.keys().hasOnly(['userId', 'action', 'description', 'createdAt'])
+        && request.resource.data.keys().hasAll(['userId', 'action', 'description', 'createdAt'])
+        && request.resource.data.action is string && request.resource.data.action.size() <= 60
+        && request.resource.data.description is string && request.resource.data.description.size() <= 500
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // ---------- facebookAccounts/{uid} (gusoma gusa; byandikwa na seriveri) ----------
+    // Ntabwo harimo token iyo ariyo yose — pageId, pageName na connectionStatus gusa.
+    match /facebookAccounts/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // ---------- Ibanga: client ntiyemerewe na gato ----------
+    match /facebookTokens/{uid} {
+      allow read, write: if false;
+    }
+    match /rateLimits/{uid} {
+      allow read, write: if false;
+    }
+
+    // Ibindi byose biraziritswe
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
