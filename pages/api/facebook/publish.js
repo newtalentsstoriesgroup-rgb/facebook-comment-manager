@@ -28,7 +28,7 @@ async function acquireSlot(db, uid, commentId) {
     }
     stamps.push(now);
     locks[commentId] = now;
-    tx.set(ref, { stamps, locks });
+    tx.set(ref, { ...data, stamps, locks });
     return { ok: true };
   });
 }
